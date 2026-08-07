@@ -99,25 +99,27 @@ if submitted:
 
     toon_voorstel()
     st.success(f"{len(samples)} staal/stalen ingelogd onder batch **{batch_code}**")
+    st.write("Stalen: " + ", ".join(s["sample_number"] for s in samples))
 
-    for sample in samples:
-        scan_url = f"{APP_BASE_URL}/Bekijk_Werkaanvraag?sample_id={sample['id']}"
-        qr_img = qrcode.make(scan_url)
-        buffer = io.BytesIO()
-        qr_img.save(buffer, format="PNG")
-        buffer.seek(0)
+    # Eén QR-code voor de hele batch (niet per staal): makkelijker om
+    # dezelfde code meerdere keren af te drukken (bv. met een Dymo-printer)
+    # dan om per staal een aparte code te moeten kopiëren.
+    scan_url = f"{APP_BASE_URL}/Bekijk_Werkaanvraag?batch_id={intake['id']}"
+    qr_img = qrcode.make(scan_url)
+    buffer = io.BytesIO()
+    qr_img.save(buffer, format="PNG")
+    buffer.seek(0)
 
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            st.image(buffer, width=150)
-        with col2:
-            st.write(f"**{sample['sample_number']}**")
-            st.code(scan_url, language=None)
-            st.download_button(
-                "Download QR-code (PNG)",
-                data=buffer,
-                file_name=f"{sample['sample_number']}.png",
-                mime="image/png",
-                key=f"download_{sample['id']}",
-            )
-        st.divider()
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.image(buffer, width=150)
+    with col2:
+        st.write(f"**QR-code voor batch {batch_code}**")
+        st.caption(f"Druk deze code {len(samples)}x af — één per staal.")
+        st.code(scan_url, language=None)
+        st.download_button(
+            "Download QR-code (PNG)",
+            data=buffer,
+            file_name=f"{batch_code}.png",
+            mime="image/png",
+        )
