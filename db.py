@@ -1,11 +1,13 @@
 """Verbinding met de Supabase-database.
 
-Leest de URL en API-key uit het .env-bestand (nooit hardcoded in code,
-zodat we dit later veilig kunnen delen/verkopen zonder geheimen te lekken).
+Leest instellingen uit het .env-bestand bij lokaal draaien, of uit Streamlit
+Cloud's "Secrets" bij online draaien (nooit hardcoded in code, zodat we dit
+later veilig kunnen delen/verkopen zonder geheimen te lekken).
 """
 import os
 import ssl
 
+import streamlit as st
 import truststore
 
 # Gebruik de certificaten van Windows zelf (i.p.v. Python's eigen lijst).
@@ -19,9 +21,21 @@ from supabase import Client, create_client
 
 load_dotenv()
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]
-APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8501")
+
+def _get_setting(key: str, default: str | None = None) -> str:
+    try:
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    if default is not None:
+        return os.environ.get(key, default)
+    return os.environ[key]
+
+
+SUPABASE_URL = _get_setting("SUPABASE_URL")
+SUPABASE_KEY = _get_setting("SUPABASE_KEY")
+APP_BASE_URL = _get_setting("APP_BASE_URL", "http://localhost:8501")
 
 
 def get_client() -> Client:
