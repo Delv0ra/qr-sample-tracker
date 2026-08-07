@@ -41,16 +41,38 @@ aantal_per_intake = pd.Series([s["intake_id"] for s in samples]).value_counts()
 df = pd.DataFrame(intakes)
 df["aantal_stalen"] = df["id"].map(aantal_per_intake).fillna(0).astype(int)
 
+extra_velden = (
+    client.table("field_definitions")
+    .select("*")
+    .eq("entity", "sample_intake")
+    .order("display_order")
+    .execute()
+    .data
+)
+for veld in extra_velden:
+    df[veld["field_key"]] = df["custom_fields"].apply(
+        lambda cf, k=veld["field_key"]: (cf or {}).get(k, "")
+    )
+
 col1, col2 = st.columns(2)
 col1.metric("🔄 Ongoing", int((df["status"] == "ongoing").sum()))
 col2.metric("✅ Complete", int((df["status"] == "complete").sum()))
 
 st.divider()
 
+categorie_opties = (
+    client.table("option_lists")
+    .select("value")
+    .eq("list_key", "category")
+    .order("display_order")
+    .execute()
+    .data
+)
+
 filter_col, cat_col, search_col = st.columns([1, 1, 2])
 status_filter = filter_col.selectbox("Status", options=["Alle", "ongoing", "complete"])
 category_filter = cat_col.selectbox(
-    "Categorie", options=["Alle", "quality control", "complaint", "process monitoring"]
+    "Categorie", options=["Alle"] + [r["value"] for r in categorie_opties]
 )
 search_term = search_col.text_input("Zoeken (batch-nummer, klant of omschrijving)")
 
@@ -75,19 +97,20 @@ st.caption(f"{len(gefilterd)} van {len(df)} stalen-intakes getoond")
 
 gefilterd = gefilterd.assign(qr=gefilterd["id"].apply(qr_data_uri))
 
-weergave = gefilterd.rename(
-    columns={
-        "batch_code": "Batch-nummer",
-        "customer": "Klant",
-        "category": "Categorie",
-        "status": "Status",
-        "date_received": "Binnengekomen",
-        "date_completed": "Voltooid",
-        "aantal_stalen": "# samples",
-        "description": "Omschrijving",
-        "qr": "QR",
-    }
-)[
+vaste_kolommen = {
+    "batch_code": "Batch-nummer",
+    "customer": "Klant",
+    "category": "Categorie",
+    "status": "Status",
+    "date_received": "Binnengekomen",
+    "date_completed": "Voltooid",
+    "aantal_stalen": "# samples",
+    "description": "Omschrijving",
+    "qr": "QR",
+}
+extra_kolommen = {veld["field_key"]: veld["label"] for veld in extra_velden}
+
+weergave = gefilterd.rename(columns={**vaste_kolommen, **extra_kolommen})[
     [
         "Batch-nummer",
         "QR",
@@ -97,6 +120,7 @@ weergave = gefilterd.rename(
         "Binnengekomen",
         "Voltooid",
         "# samples",
+        *extra_kolommen.values(),
         "Omschrijving",
     ]
 ]

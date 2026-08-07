@@ -10,6 +10,21 @@ st.title("🔍 Opzoeken")
 client = get_client()
 
 
+def toon_extra_velden(entity: str, custom_fields: dict) -> None:
+    velden = (
+        client.table("field_definitions")
+        .select("*")
+        .eq("entity", entity)
+        .order("display_order")
+        .execute()
+        .data
+    )
+    for veld in velden:
+        waarde = (custom_fields or {}).get(veld["field_key"])
+        if waarde not in (None, ""):
+            st.write(f"**{veld['label']}:** {waarde}")
+
+
 def toon_intake(intake: dict) -> None:
     st.subheader(intake["batch_code"])
     status_emoji = "✅" if intake["status"] == "complete" else "🔄"
@@ -19,6 +34,7 @@ def toon_intake(intake: dict) -> None:
     st.write(f"**Datum binnengekomen:** {intake['date_received']}")
     st.write(f"**Datum voltooid:** {intake['date_completed'] or '-'}")
     st.write(f"**Beschrijving stalen:** {intake['description'] or '-'}")
+    toon_extra_velden("sample_intake", intake.get("custom_fields"))
 
     st.divider()
     st.caption("Stalen in deze batch")
@@ -74,6 +90,7 @@ def toon_staal(sample: dict) -> None:
     st.write(f"**Datum binnengekomen:** {intake['date_received']}")
     st.write(f"**Datum voltooid:** {intake['date_completed'] or '-'}")
     st.write(f"**Beschrijving stalen:** {intake['description'] or '-'}")
+    toon_extra_velden("sample_intake", intake.get("custom_fields"))
 
     st.divider()
     st.caption("Gekoppelde werkaanvraag")
