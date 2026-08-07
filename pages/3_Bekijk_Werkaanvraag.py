@@ -30,12 +30,31 @@ def toon_intake(intake: dict) -> None:
         .execute()
         .data
     )
+
+    wr_ids = {s["work_request_id"] for s in samples_in_batch if s["work_request_id"]}
+    wr_lookup = {}
+    if wr_ids:
+        wr_rows = (
+            client.table("work_requests").select("*").in_("id", list(wr_ids)).execute().data
+        )
+        wr_lookup = {wr["id"]: wr for wr in wr_rows}
+
     if samples_in_batch:
         for s in samples_in_batch:
-            koppeling = " _(gekoppeld aan werkaanvraag)_" if s["work_request_id"] else ""
+            wr = wr_lookup.get(s["work_request_id"])
+            koppeling = f" _(werkaanvraag {wr['request_code']})_" if wr else ""
             st.write(f"- {s['sample_number']}{koppeling}")
     else:
         st.info("Geen stalen gevonden in deze batch.")
+
+    if wr_lookup:
+        st.divider()
+        st.caption("Gekoppelde werkaanvra(a)g(en)")
+        for wr in wr_lookup.values():
+            st.write(f"**{wr['request_code']}**")
+            st.write(f"Beschrijving: {wr['description']}")
+            st.write(f"Aanvrager: {wr['requester'] or '-'}")
+            st.write(f"Datum aangemaakt: {wr['created_at']}")
 
 
 def toon_staal(sample: dict) -> None:
