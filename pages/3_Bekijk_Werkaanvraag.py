@@ -108,6 +108,7 @@ def toon_staal(sample: dict) -> None:
             st.write(f"**Beschrijving:** {wr['description']}")
             st.write(f"**Aanvrager:** {wr['requester'] or '-'}")
             st.write(f"**Datum aangemaakt:** {wr['created_at']}")
+            toon_extra_velden("work_request", wr.get("custom_fields"))
         else:
             st.warning("Gekoppelde werkaanvraag niet gevonden.")
     else:
@@ -119,6 +120,7 @@ def toon_werkaanvraag(wr: dict) -> None:
     st.write(f"**Beschrijving:** {wr['description']}")
     st.write(f"**Aanvrager:** {wr['requester'] or '-'}")
     st.write(f"**Datum aangemaakt:** {wr['created_at']}")
+    toon_extra_velden("work_request", wr.get("custom_fields"))
 
     st.divider()
     st.caption("Gekoppelde stalen")

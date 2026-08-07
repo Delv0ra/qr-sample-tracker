@@ -30,6 +30,20 @@ def volgende_werkaanvraag_code(year: int) -> str:
     return f"{prefix}{volgnummer:03d}"
 
 
+def haal_extra_velden() -> list[dict]:
+    """Door de admin toegevoegde extra velden (Instellingen-pagina)."""
+    return (
+        client.table("field_definitions")
+        .select("*")
+        .eq("entity", "work_request")
+        .order("display_order")
+        .execute()
+        .data
+    )
+
+
+extra_velden = haal_extra_velden()
+
 if "wr_form_lichting" not in st.session_state:
     st.session_state.wr_form_lichting = 0
 
@@ -70,6 +84,25 @@ else:
     st.caption("Nieuw nummer — vul hieronder de gegevens voor de nieuwe werkaanvraag in.")
     description = st.text_area("Beschrijving van de werkaanvraag *")
     requester = st.text_input("Aanvrager")
+
+    extra_waarden = {}
+    if extra_velden:
+        st.caption("Extra velden")
+        for veld in extra_velden:
+            label = veld["label"] + (" *" if veld["required"] else "")
+            key = f"wr_extra_{veld['field_key']}_{st.session_state.wr_form_lichting}"
+            if veld["field_type"] == "text":
+                extra_waarden[veld["field_key"]] = st.text_input(label, key=key)
+            elif veld["field_type"] == "number":
+                extra_waarden[veld["field_key"]] = st.number_input(label, value=0, key=key)
+            elif veld["field_type"] == "date":
+                extra_waarden[veld["field_key"]] = st.date_input(label, key=key)
+            elif veld["field_type"] == "boolean":
+                extra_waarden[veld["field_key"]] = st.checkbox(label, key=key)
+            elif veld["field_type"] == "select":
+                extra_waarden[veld["field_key"]] = st.selectbox(
+                    label, options=veld["options"] or [], key=key
+                )
 
 st.divider()
 
@@ -115,17 +148,33 @@ else:
 
 knop_tekst = "Stalen toevoegen aan werkaanvraag" if bestaande_wr else "Werkaanvraag aanmaken"
 
+verplicht_veld_ontbreekt = not bestaande_wr and any(
+    veld["required"]
+    and veld["field_type"] in ("text", "select")
+    and not extra_waarden.get(veld["field_key"])
+    for veld in extra_velden
+)
+
 if st.button(knop_tekst):
     if not request_code:
         st.error("Werkaanvraag-nummer is verplicht.")
     elif not bestaande_wr and not description.strip():
         st.error("Beschrijving is verplicht.")
+    elif verplicht_veld_ontbreekt:
+        st.error("Vul alle verplichte extra velden in.")
     elif not geselecteerde_ids:
         st.error("Kies minstens één staal om aan de werkaanvraag te koppelen.")
     else:
         if bestaande_wr:
             wr_id = bestaande_wr["id"]
         else:
+            custom_field_values = {}
+            for veld in extra_velden:
+                waarde = extra_waarden[veld["field_key"]]
+                if veld["field_type"] == "date" and waarde:
+                    waarde = waarde.isoformat()
+                custom_field_values[veld["field_key"]] = waarde
+
             wr = (
                 client.table("work_requests")
                 .insert(
@@ -133,6 +182,7 @@ if st.button(knop_tekst):
                         "request_code": request_code,
                         "description": description.strip(),
                         "requester": requester.strip(),
+                        "custom_fields": custom_field_values,
                     }
                 )
                 .execute()
