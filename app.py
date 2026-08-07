@@ -1,15 +1,6 @@
-import os
-
 import streamlit as st
 
 st.set_page_config(page_title="QR Sample Tracker", page_icon="🧪")
-
-with st.expander("Tijdelijke debug-info (APP_BASE_URL)"):
-    st.write("'APP_BASE_URL' in st.secrets:", "APP_BASE_URL" in st.secrets)
-    st.write("st.secrets waarde:", repr(st.secrets.get("APP_BASE_URL")))
-    st.write("os.environ waarde:", repr(os.environ.get("APP_BASE_URL")))
-    from db import APP_BASE_URL
-    st.write("Uiteindelijke APP_BASE_URL:", repr(APP_BASE_URL))
 
 st.title("🧪 QR Sample Tracker")
 st.write(
