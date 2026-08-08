@@ -14,7 +14,11 @@ st.title("📋 Overzicht stalen")
 client = get_client()
 
 
+@st.cache_data
 def qr_data_uri(batch_id: str) -> str:
+    """De QR-afbeelding voor een batch verandert nooit (zelfde batch_id ->
+    zelfde link), dus die hoeft maar één keer getekend te worden i.p.v. bij
+    elke filter-aanpassing opnieuw."""
     scan_url = f"{APP_BASE_URL}/Bekijk_Werkaanvraag?batch_id={batch_id}"
     qr_img = qrcode.make(scan_url)
     buffer = io.BytesIO()
@@ -23,32 +27,59 @@ def qr_data_uri(batch_id: str) -> str:
     return f"data:image/png;base64,{b64}"
 
 
-intakes = (
-    client.table("sample_intakes")
-    .select("*")
-    .order("created_at", desc=True)
-    .execute()
-    .data
-)
+@st.cache_data(ttl=30)
+def haal_intakes() -> list[dict]:
+    return (
+        client.table("sample_intakes")
+        .select("*")
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+
+
+@st.cache_data(ttl=30)
+def haal_samples_per_intake() -> list[dict]:
+    return client.table("samples").select("id, intake_id").execute().data
+
+
+@st.cache_data(ttl=30)
+def haal_extra_velden() -> list[dict]:
+    return (
+        client.table("field_definitions")
+        .select("*")
+        .eq("entity", "sample_intake")
+        .order("display_order")
+        .execute()
+        .data
+    )
+
+
+@st.cache_data(ttl=30)
+def haal_categorieen() -> list[dict]:
+    return (
+        client.table("option_lists")
+        .select("value")
+        .eq("list_key", "category")
+        .order("display_order")
+        .execute()
+        .data
+    )
+
+
+intakes = haal_intakes()
 
 if not intakes:
     st.info("Er zijn nog geen stalen ingelogd.")
     st.stop()
 
-samples = client.table("samples").select("id, intake_id").execute().data
+samples = haal_samples_per_intake()
 aantal_per_intake = pd.Series([s["intake_id"] for s in samples]).value_counts()
 
 df = pd.DataFrame(intakes)
 df["aantal_stalen"] = df["id"].map(aantal_per_intake).fillna(0).astype(int)
 
-extra_velden = (
-    client.table("field_definitions")
-    .select("*")
-    .eq("entity", "sample_intake")
-    .order("display_order")
-    .execute()
-    .data
-)
+extra_velden = haal_extra_velden()
 for veld in extra_velden:
     df[veld["field_key"]] = df["custom_fields"].apply(
         lambda cf, k=veld["field_key"]: (cf or {}).get(k, "")
@@ -60,14 +91,7 @@ col2.metric("✅ Complete", int((df["status"] == "complete").sum()))
 
 st.divider()
 
-categorie_opties = (
-    client.table("option_lists")
-    .select("value")
-    .eq("list_key", "category")
-    .order("display_order")
-    .execute()
-    .data
-)
+categorie_opties = haal_categorieen()
 
 filter_col, cat_col, search_col = st.columns([1, 1, 2])
 status_filter = filter_col.selectbox("Status", options=["Alle", "ongoing", "complete"])
@@ -164,5 +188,6 @@ if st.button("Status opslaan"):
         update_data["date_completed"] = None
 
     client.table("sample_intakes").update(update_data).eq("id", huidige["id"]).execute()
+    haal_intakes.clear()
     st.success(f"Status van {gekozen_batch} bijgewerkt naar '{nieuwe_status}'.")
     st.rerun()
