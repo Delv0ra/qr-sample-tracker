@@ -127,7 +127,7 @@ weergave = gefilterd.rename(columns={**vaste_kolommen, **extra_kolommen})[
 
 st.dataframe(
     weergave,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "QR": st.column_config.ImageColumn("QR", width="small", help="Klik om te vergroten"),
